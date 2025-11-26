@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Decentralized Identity Demo</title>
+<script src="https://cdn.jsdelivr.net/npm/web3@1.9.0/dist/web3.min.js"></script>
+<style>
+body { font-family: Arial; padding: 20px; }
+button { margin: 5px 0; }
+pre { background: #f4f4f4; padding: 10px; }
+</style>
+</head>
+<body>
+
+<h1>Decentralized Identity Demo</h1>
+
+<button onclick="createIdentity()">1️⃣ Tạo Identity</button>
+<button onclick="addAttribute()">2️⃣ Thêm Attribute</button>
+<button onclick="authorizeIssuer()">3️⃣ Authorize Issuer</button>
+<button onclick="issueCredential()">4️⃣ Issue Credential</button>
+
+<h2>Logs</h2>
+<pre id="log"></pre>
+
+<script>
+// ======================
+// Helper log
+// ======================
+const log = (msg) => {
+    document.getElementById("log").textContent += msg + "\n";
+};
+
+// ======================
+// Web3 + Contract setup
+// ======================
+const RPC_URL = "http://127.0.0.1:7545";
+const web3 = new Web3(RPC_URL);
+
+const contractAddress = "0x96d10b73736ACE2a94FaA6eFA68b20D61F9309eE";
+let contractAbi;
+let contract;
+
+fetch("IdentityABI.json")
+.then(res => res.json())
+.then(abi => {
+    contractAbi = abi;
+    contract = new web3.eth.Contract(contractAbi, contractAddress);
+    log("✓ Contract loaded");
+});
+
+// ======================
+// Accounts
+// ======================
+let accounts = [];
+web3.eth.getAccounts().then(accts => {
+    accounts = accts;
+    log("Accounts: " + accounts.join(", "));
+});
+
+// ======================
+// Identity ID
+// ======================
+let identityId = null;
+
+// ======================
+// 1️⃣ Create Identity
+// ======================
+async function createIdentity() {
+    try {
+        const tx = await contract.methods
+            .createIdentity("Ngoc Le")
+            .send({ from: accounts[4] });
+
+        if (!tx.events || !tx.events.IdentityCreated) {
+            return log("❌ IdentityCreated event NOT found!");
+        }
+
+        let ev = tx.events.IdentityCreated.returnValues;
+        identityId = ev.id;
+
+        log("✓ IdentityCreated: " + JSON.stringify(ev));
+        log("➡ identityId = " + identityId);
+    } catch (err) {
+        log("❌ Error: " + err.message);
+    }
+}
+
+// ======================
+// 2️⃣ Add Attribute
+// ======================
+async function addAttribute() {
+    if (!identityId) return log("❌ No identity created");
+
+    try {
+        const tx = await contract.methods
+            .addAttribute(identityId, "Name", "Ngoc Le")
+            .send({ from: accounts[4] });
+
+        if (!tx.events || !tx.events.AttributeAdded) {
+            return log("❌ AttributeAdded event NOT found!");
+        }
+
+        log("✓ AttributeAdded: " +
+            JSON.stringify(tx.events.AttributeAdded.returnValues));
+
+    } catch (err) {
+        log("❌ Error: " + err.message);
+    }
+}
+
+// ======================
+// 3️⃣ Authorize Issuer
+// ======================
+async function authorizeIssuer() {
+    if (!identityId) return log("❌ No identity created");
+
+    try {
+        const tx = await contract.methods
+            .authorizeIssuer(identityId, accounts[0])
+            .send({ from: accounts[4] });
+
+        if (!tx.events || !tx.events.IssuerAuthorized) {
+            return log("❌ IssuerAuthorized event NOT found!");
+        }
+
+        log("✓ IssuerAuthorized: " +
+            JSON.stringify(tx.events.IssuerAuthorized.returnValues));
+
+    } catch (err) {
+        log("❌ Error: " + err.message);
+    }
+}
+
+// ======================
+// 4️⃣ Issue Credential
+// ======================
+async function issueCredential() {
+    if (!identityId) return log("❌ No identity created");
+
+    try {
+        const credId = web3.utils.keccak256("CRED001");
+
+        const tx = await contract.methods
+            .issueCredential(identityId, credId)
+            .send({ from: accounts[0] });
+
+        if (!tx.events || !tx.events.CredentialIssued) {
+            return log("❌ CredentialIssued event NOT found!");
+        }
+
+        log("✓ CredentialIssued: " +
+            JSON.stringify(tx.events.CredentialIssued.returnValues));
+
+    } catch (err) {
+        log("❌ Error: " + err.message);
+    }
+}
+</script>
+</body>
+</html>
